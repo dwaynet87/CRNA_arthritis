@@ -4,8 +4,2192 @@ author: "Dwayne Tucker"
 date: "2026-09-23"
 output: html_document
 ---
+```{r setup, include=FALSE}
+library(haven) # loading data into R
+library(tidyverse) # Cleaning and data exploration
+library(butcher) # trims row data before saving final model
+library(naniar) # Data missingness
+library(dplyr)
+library(ggplot2) # Plots and visualizations
+library(skimr)
+library(psych)
+library(rmarkdown)
+library(survey)
+library(janitor)
+library(vip)
+library(mice)
+library(ranger) # Random forest
+library(caret) # ML model building
+library(VIM)
+library(srvyr)
+library(tidymodels) # ML model building
+library(doParallel)
+library(WeightedROC)
+library(Hmisc)  # for wtd.mean, wtd.var if needed
+library(broom)
+library(rsample)
+library(purrr)
+library(CalibrationCurves)
+library(bonsai)
+library(lightgbm) # for lightGBM model
+```
+
+
 ```{r}
-# Packages
+# Import data
+#data <- read.csv ("cchs_escc_bsw.csv")
+data <- read_dta("hs.dta")
+bsw <- read_dta("bsw.dta")
+```
+
+```{r}
+# View data structure
+glimpse(data)
+
+# Check for duplicated row ID's--- (not particularly relevant as record number. However no duplicates were noted.)
+sum(duplicated(data$ADM_RNO1))
+
+# missing data summary
+miss_summary(data)
+
+miss_var_summary(data)
+```
+
+```{r}
+library(pmsampsize)
+pmsampsize(type = "b", cstatistic = 0.70, parameters = 19, prevalence = 0.066)
+
+```
+
+
+```{r}
+# RECODING OF KEY VARIABLES. "Not stated", "Don't know", "Refusal", "Not stated" was re-coded as Missing/ Na 
+
+##### CHRONIC CONDITIONS
+
+# Has asthma
+data$CCC_015 <- recode(data$CCC_015,
+  `1` = "Yes",
+  `2` = "No",
+  `6` = NA_character_,
+  `7` = NA_character_,
+  `8` = NA_character_,
+  `9` = NA_character_
+) |> factor(levels = c("No", "Yes"))
+
+
+# Has a COPD. Do you have chronic bronchitis, emphysema or chronic obstructive pulmonary disease or COPD?
+data$CCC_030 <- recode(data$CCC_030,
+  `1` = "Yes",
+  `2` = "No",
+  `6` = NA_character_,
+  `7` = NA_character_,
+  `8` = NA_character_,
+  `9` = NA_character_
+) |> factor(levels = c("No", "Yes"))
+
+
+# Has sleep apnea. Have you been told by a health professional that you have sleep apnea?
+data$CCC_035 <- recode(data$CCC_035,
+  `1` = "Yes",
+  `2` = "No",
+  `7` = NA_character_,
+  `8` = NA_character_,
+  `9` = NA_character_
+) |> factor(levels = c("No", "Yes"))
+
+
+# Has sleep apnea. Have you been told by a health professional that you have sleep apnea?
+data$CCC_035 <- recode(data$CCC_035,
+  `1` = "Yes",
+  `2` = "No",
+  `7` = NA_character_,
+  `8` = NA_character_,
+  `9` = NA_character_
+) |> factor(levels = c("No", "Yes"))
+
+
+# Has scoliosis. Do you have scoliosis?
+data$CCC_040 <- recode(data$CCC_040,
+  `1` = "Yes",
+  `2` = "No",
+  `7` = NA_character_,
+  `8` = NA_character_,
+  `9` = NA_character_
+) |> factor(levels = c("No", "Yes"))
+
+# Has fibromyalgia. Do you have fibromyalgia?
+data$CCC_045 <- recode(data$CCC_045,
+  `1` = "Yes",
+  `2` = "No",
+  `7` = NA_character_,
+  `8` = NA_character_,
+  `9` = NA_character_
+) |> factor(levels = c("No", "Yes"))
+
+
+# Has arthritis (e.g. osteoarthritis, rheumatoid arthritis, gout). Do you have arthritis, for example osteoarthritis, rheumatoid arthritis, gout or any other type, excluding fibromyalgia?
+data$CCC_050 <- recode(data$CCC_050,
+  `1` = "Yes",
+  `2` = "No",
+  `7` = NA_character_,
+  `8` = NA_character_,
+  `9` = NA_character_
+) |> factor(levels = c("No", "Yes"))
+
+
+# Has back problems (excluding scoliosis, fibromyalgia and arthritis). Do you have back problems, excluding scoliosis, fibromyalgia and arthritis?
+data$CCC_055 <- recode(data$CCC_055,
+  `1` = "Yes",
+  `2` = "No",
+  `7` = NA_character_,
+  `8` = NA_character_,
+  `9` = NA_character_
+) |> factor(levels = c("No", "Yes"))
+
+
+# Do you have osteoporosis?
+data$CCC_060 <- recode(data$CCC_060,
+  `1` = "Yes",
+  `2` = "No",
+  `6` = NA_character_,
+  `7` = NA_character_,
+  `8` = NA_character_,
+  `9` = NA_character_
+) |> factor(levels = c("No", "Yes"))
+
+
+# Has high blood pressure. Do you have high blood pressure?
+data$CCC_065 <- recode(data$CCC_065,
+  `1` = "Yes",
+  `2` = "No",
+  `7` = NA_character_,
+  `8` = NA_character_,
+  `9` = NA_character_
+) |> factor(levels = c("No", "Yes"))
+
+
+# Has high blood cholesterol / lipids. Do you have high blood cholesterol or lipids?
+data$CCC_075 <- recode(data$CCC_075,
+  `1` = "Yes",
+  `2` = "No",
+  `6` = NA_character_,
+  `7` = NA_character_,
+  `8` = NA_character_,
+  `9` = NA_character_
+) |> factor(levels = c("No", "Yes"))
+
+
+
+# Has heart disease. Do you have heart disease?
+data$CCC_085 <- recode(data$CCC_085,
+  `1` = "Yes",
+  `2` = "No",
+  `7` = NA_character_,
+  `8` = NA_character_,
+  `9` = NA_character_
+) |> factor(levels = c("No", "Yes"))
+
+
+# Suffers from the effects of a stroke. Do you suffer from the effects of a stroke?
+data$CCC_090 <- recode(data$CCC_090,
+  `1` = "Yes",
+  `2` = "No",
+  `7` = NA_character_,
+  `8` = NA_character_,
+  `9` = NA_character_
+) |> factor(levels = c("No", "Yes"))
+
+
+# Has diabetes. Do you have diabetes?
+data$CCC_095 <- recode(data$CCC_095,
+  `1` = "Yes",
+  `2` = "No",
+  `7` = NA_character_,
+  `8` = NA_character_,
+  `9` = NA_character_
+) |> factor(levels = c("No", "Yes"))
+
+
+# Do you have cancer?
+data$CCC_130 <- recode(data$CCC_130,
+  `1` = "Yes",
+  `2` = "No",
+  `7` = NA_character_,
+  `8` = NA_character_,
+  `9` = NA_character_
+) |> factor(levels = c("No", "Yes"))
+
+
+# Has migraine headaches
+data$CCC_140 <- recode(data$CCC_140,
+  `1` = "Yes",
+  `2` = "No",
+  `7` = NA_character_,
+  `8` = NA_character_,
+  `9` = NA_character_
+) |> factor(levels = c("No", "Yes"))
+
+
+# Has chronic fatigue syndrome. Do you have chronic fatigue syndrome?
+data$CCC_185 <- recode(data$CCC_185,
+  `1` = "Yes",
+  `2` = "No",
+  `7` = NA_character_,
+  `8` = NA_character_,
+  `9` = NA_character_
+) |> factor(levels = c("No", "Yes"))
+
+
+# Suffers from multiple chemical sensitivities. Do you suffer from multiple chemical sensitivities?
+data$CCC_190 <- recode(data$CCC_190,
+  `1` = "Yes",
+  `2` = "No",
+  `7` = NA_character_,
+  `8` = NA_character_,
+  `9` = NA_character_
+) |> factor(levels = c("No", "Yes"))
+
+
+# Has a mood disorder (depression, bipolar, mania, dysthymia). Do you have a mood disorder such as depression, bipolar disorder, mania or dysthymia?
+data$CCC_195 <- recode(data$CCC_195,
+  `1` = "Yes",
+  `2` = "No",
+  `7` = NA_character_,
+  `8` = NA_character_,
+  `9` = NA_character_
+) |> factor(levels = c("No", "Yes"))
+
+
+
+# Has an anxiety disorder (phobia, OCD, panic). Do you have an anxiety disorder such as a phobia, obsessive-compulsive disorder or a panic disorder?
+data$CCC_200 <- recode(data$CCC_200,
+  `1` = "Yes",
+  `2` = "No",
+  `7` = NA_character_,
+  `8` = NA_character_,
+  `9` = NA_character_
+) |> factor(levels = c("No", "Yes"))
+
+
+
+# Groupings for disorders
+# NOTE: Use isTRUE(. == "Yes") to prevent NA propagation in logical OR statements.
+data <- data %>%
+  mutate(
+    # Musculoskeletal / connective tissue
+    muscu = factor(
+      if_else(
+        CCC_040 == "Yes" | CCC_045 == "Yes" | CCC_050 == "Yes" |
+          CCC_060 == "Yes" | CCC_065 == "Yes",
+        "Yes", "No"
+      ),
+      levels = c("No", "Yes")
+    ),
+
+    # Respiratory
+    respiratory = factor(
+      if_else(
+        CCC_015 == "Yes" | CCC_030 == "Yes" | CCC_035 == "Yes",
+        "Yes", "No"
+      ),
+      levels = c("No", "Yes")
+    ),
+
+    # Cardiometabolic
+    cardiometabolic = factor(
+      if_else(
+        CCC_070 == "Yes" | CCC_075 == "Yes" | CCC_085 == "Yes" | CCC_090 == "Yes",
+        "Yes", "No"
+      ),
+      levels = c("No", "Yes")
+    ),
+
+    # Neurologic / pain-related
+    neurologic_pain = factor(
+      if_else(
+        CCC_140 == "Yes" | CCC_185 == "Yes" | CCC_190 == "Yes",
+        "Yes", "No"
+      ),
+      levels = c("No", "Yes")
+    ),
+
+    # Mental health
+    mental_health = factor(
+      if_else(
+        CCC_195 == "Yes" | CCC_200 == "Yes",
+        "Yes", "No"
+      ),
+      levels = c("No", "Yes")
+    ),
+
+    # Cancer
+    cancer = factor(
+      if_else(
+        CCC_130 == "Yes",
+        "Yes", "No"
+      ),
+      levels = c("No", "Yes")
+    )
+  )
+
+# Counts on number of chronic conditions
+data <- data %>%
+  mutate(chronic_condition_number = rowSums(across(c(CCC_015, CCC_030, CCC_035, CCC_040,CCC_045, CCC_050, CCC_055, CCC_060, CCC_065, CCC_075, CCC_085, CCC_090, CCC_095, CCC_130, CCC_140, CCC_185, CCC_190, CCC_195, CCC_200), ~ . == "Yes"), na.rm = TRUE))
+ 
+data$chronic_condition_number <- case_match(data$chronic_condition_number,
+                                            0 ~ '0',
+                                            1 ~ '1',
+                                            2 ~ '2',
+                                            3 ~ '3',
+                                            4:19 ~ '>4',
+                                            ) %>% factor(ordered=FALSE, levels=c("0", "1", "2", "3", ">4"))
+
+
+
+# During the last 12 months, was there a time when you did not fill or collect a prescription for medicine, or you skipped doses of your medicine because of the cost?
+
+# CRNA variable. renamed to exclude 'Valid skip' as the variable will be assessed as "RESPONDENTS ASSESSED FOR CRNA"
+data$PEX_090 <- recode(data$PEX_090,
+  `1` = "Yes",
+  `2` = "No",
+  `3` = "NA, no prescription to fill in the last 12 months",
+  `7` = "Dont know",
+  `8` = "Refusal",
+  `9` = "Not stated"
+) |> factor(levels = c(
+  "No", "Yes", "NA, no prescription to fill in the last 12 months",
+  "Dont know", "Refusal", "Not stated"
+))
+
+table(data$PEX_090)
+
+
+# CRNA variable for modeling: treat refusal/don't know/not stated/valid skip as missing
+data$PEX_090_model <- recode(data$PEX_090,
+  `1` = "Yes",
+  `2` = "No",
+  `3` = NA_character_,
+  `7` = NA_character_,
+  `8` = NA_character_,
+  `9` = NA_character_
+) |> factor(levels = c("No", "Yes"))
+
+
+# Province of residence of respondents
+data$GEO_PRV <- recode(data$GEO_PRV,
+  `10` = "NEWFOUNDLAND AND LABRADOR",
+  `11` = "PRINCE EDWARD ISLAND",
+  `12` = "NOVA SCOTIA",
+  `13` = "NEW BRUNSWICK",
+  `24` = "QUEBEC",
+  `35` = "ONTARIO",
+  `46` = "MANITOBA",
+  `47` = "SASKATCHEWAN",
+  `48` = "ALBERTA",
+  `59` = "BRITISH COLUMBIA",
+  `60` = "YUKON",
+  `61` = "NORTHWEST TERRITORIES"
+) |> factor(levels = c(
+  "QUEBEC", "ONTARIO",
+  "NEWFOUNDLAND AND LABRADOR",
+  "PRINCE EDWARD ISLAND",
+  "NOVA SCOTIA",
+  "NEW BRUNSWICK",
+  "MANITOBA",
+  "SASKATCHEWAN",
+  "ALBERTA",
+  "BRITISH COLUMBIA",
+  "YUKON",
+  "NORTHWEST TERRITORIES"
+))
+
+
+# Marital status
+data$DHHGMS <- recode(data$DHHGMS,
+  `1` = "Married",
+  `2` = "Common law",
+  `3` = "Widowed/Divorced/Separated",
+  `4` = "Single",
+  `9` = NA_character_
+)
+
+data <- data %>%
+  mutate(
+    DHHGMS = case_when(
+      DHHGMS %in% c("Married", "Common law") ~ "Married/Common-law",
+      DHHGMS %in% c("Widowed/Divorced/Separated", "Single") ~ "Widowed/Divorced/Separated/Single, never married",
+      TRUE ~ NA_character_
+    ),
+    DHHGMS = factor(
+      DHHGMS,
+      levels = c("Married/Common-law", "Widowed/Divorced/Separated/Single, never married")
+    )
+  )
+
+
+
+# Highest level of education
+data$EHG2DVH3 <- recode(data$EHG2DVH3,
+  `1` = "Less than secondary school graduation",
+  `2` = "Secondary school graduation, no post-secondary education",
+  `3` = "Post-secondary certificate/diploma / university degree",
+  # `9` = "Not stated",
+  `9` = NA_character_
+) |> factor(
+  levels = c(
+    "Less than secondary school graduation",
+    "Post-secondary certificate/diploma / university degree",
+    "Secondary school graduation, no post-secondary education"
+  ),
+  ordered = FALSE
+)
+
+
+# Total Household Income
+data$INCDGHH <- recode(data$INCDGHH,
+  `1` = "<$20,000",
+  `2` = "$20,000-$39,000",
+  `3` = "$40,000-$59,000",
+  `4` = "$60,000-$79,000",
+  `5` = "≥$80,000",
+  `9` = NA_character_
+) |> factor(
+  levels = c("≥$80,000", "<$20,000", "$20,000-$39,000", "$40,000-$59,000", "$60,000-$79,000"),
+  ordered = FALSE
+)
+
+
+# Sexual orientation
+data$SDC_035 <- recode(data$SDC_035,
+  `1` = "Heterosexual",
+  `2` = "Homosexual, that is lesbian or gay",
+  `3` = "Bisexual",
+  `6` = NA_character_,
+  `7` = NA_character_,
+  `8` = NA_character_,
+  `9` = NA_character_
+) |> factor(levels = c("Heterosexual", "Bisexual", "Homosexual, that is lesbian or gay"))
+
+
+# Sex at birth
+data$DHH_SEX <- recode(data$DHH_SEX,
+  `1` = "Male",
+  `2` = "Female"
+) |> factor(levels = c("Male", "Female"))
+
+
+
+# Age, grouped
+data$DHHGAGE <- recode(data$DHHGAGE,
+  `1` = "12-17",
+  `2` = "12-17",
+  `3` = "18-34",
+  `4` = "18-34",
+  `5` = "18-34",
+  `6` = "18-34",
+  `7` = "35-49",
+  `8` = "35-49",
+  `9` = "35-49",
+  `10` = "50-64",
+  `11` = "50-64",
+  `12` = "65-79",
+  `13` = "65-79",
+  `14` = "65-79",
+  `15` = "65-79",
+  `16` = "≥80"
+) |> factor(levels = c("≥80", "12-17", "18-34", "35-49", "50-64", "65-79"), ordered = FALSE)
+
+
+
+# Immigration status/ Country of Birth
+data$SDCDGCB <- recode(data$SDCDGCB,
+  `1` = "Canada",
+  `2` = "Other",
+  # `9` = "Not stated",
+  `9` = NA_character_
+) |> factor(levels = c("Canada", "Other"))
+
+
+# Dwelling ownership - own or rent. Is this dwelling...?
+data$DHH_OWN <- recode(data$DHH_OWN,
+  `1` = "Owned",
+  `2` = "Rented",
+  # `9` = "Not stated",
+  `7` = NA_character_,
+  `8` = NA_character_,
+  `9` = NA_character_
+) |> factor(levels = c("Owned", "Rented"))
+
+
+# Cultural/ racial background
+data$SDCDGCGT <- recode(data$SDCDGCGT,
+  `1` = "White",
+  `2` = "Non-white",
+  # `9` = "Not stated",
+  `9` = NA_character_
+) |> factor(levels = c("White", "Non-white"))
+
+
+
+# Satisfaction with life
+data$GENDVSWL <- recode(data$GENDVSWL,
+  `1` = "Very Satisfied",
+  `2` = "Satisfied",
+  `3` = "Neither satisfied nor dissatisfied",
+  `4` = "Dissatisfied",
+  `5` = "Very Dissatisfied",
+  # `9` = "Not stated",
+  `9` = NA_character_
+) |> factor(
+  levels = c("Very Satisfied", "Satisfied", "Neither satisfied nor dissatisfied", "Dissatisfied", "Very Dissatisfied"),
+  ordered = FALSE
+)
+
+
+# Overall perceived health
+data$GEN_005 <- recode(data$GEN_005,
+  `1` = "Excellent",
+  `2` = "Very good",
+  `3` = "Good",
+  `4` = "Fair",
+  `5` = "Poor",
+  `7` = NA_character_,
+  `8` = NA_character_,
+  `9` = NA_character_
+) |> factor(levels = c("Excellent", "Very good", "Good", "Fair", "Poor"), ordered = FALSE)
+
+
+# Perceived mental health (Derived variable)
+data$GENDVMHI <- recode(data$GENDVMHI,
+  `4` = "Excellent",
+  `3` = "Very good",
+  `2` = "Good",
+  `1` = "Fair",
+  `0` = "Poor",
+  # `7` = "Dont know",
+  # `8` = "Refusal",
+  `7` = NA_character_,
+  `8` = NA_character_,
+  `9` = NA_character_
+) |> factor(levels = c("Excellent", "Very good", "Good", "Fair", "Poor"), ordered = FALSE)
+
+
+# Insurance covers part or all of prescription medication cost. Do you have insurance that covers all or part of the cost of your prescription medications?
+data$INS_005 <- recode(data$INS_005,
+  `1` = "Yes",
+  `2` = "No",
+  # `6` = "Valid skip",
+  # `7` = "Dont know",
+  # `8` = "Refusal",
+  # `9` = "Not stated",
+  `7` = NA_character_,
+  `8` = NA_character_,
+  `9` = NA_character_
+) |> factor(levels = c("Yes", "No"))
+
+
+# TYPE OF INSURANCE. FOR THOSE WHO ANSWERED YES TO "INS_005"
+# Government
+data$INS_010A <- recode(data$INS_010A,
+  `1` = "Yes",
+  `2` = "No",
+  `6` = NA_character_,
+  `7` = NA_character_,
+  `8` = NA_character_,
+  `9` = NA_character_
+) |> factor(levels = c("No", "Yes"))
+
+
+# Employer
+data$INS_010B <- recode(data$INS_010B,
+  `1` = "Yes",
+  `2` = "No",
+  `6` = NA_character_,
+  `7` = NA_character_,
+  `8` = NA_character_,
+  `9` = NA_character_
+) |> factor(levels = c("No", "Yes"))
+
+
+# Association. Is it...?A plan sponsored through an association such as a union, trade association or student organization
+data$INS_010C <- recode(data$INS_010C,
+  `1` = "Yes",
+  `2` = "No",
+  `6` = NA_character_,
+  `7` = NA_character_,
+  `8` = NA_character_,
+  `9` = NA_character_
+) |> factor(levels = c("No", "Yes"))
+
+
+
+# Private. Other, such as your own private plan purchased from an insurance company
+data$INS_010D <- recode(data$INS_010D,
+  `1` = "Yes",
+  `2` = "No",
+  `6` = NA_character_,
+  `7` = NA_character_,
+  `8` = NA_character_,
+  `9` = NA_character_
+) |> factor(levels = c("No", "Yes"))
+
+
+# Do you have insurance that covers all or part of your long-term care costs, including home care?
+data$INS_015 <- recode(data$INS_015,
+  `1` = "Yes",
+  `2` = "No",
+  `7` = NA_character_,
+  `8` = NA_character_,
+  `9` = NA_character_
+) |> factor(levels = c("No", "Yes"))
+
+# Type of insurance - long-term care costs - govt. 
+data$INS_020A <- recode(data$INS_020A,
+  `1` = "Yes",
+  `2` = "No",
+  `6` = NA_character_,
+  `7` = NA_character_,
+  `8` = NA_character_,
+  `9` = NA_character_
+) |> factor(levels = c("No", "Yes"))
+
+
+# Type of insurance - long-term care costs - employer
+data$INS_020B <- recode(data$INS_020B,
+  `1` = "Yes",
+  `2` = "No",
+  `6` = NA_character_,
+  `7` = NA_character_,
+  `8` = NA_character_,
+  `9` = NA_character_
+) |> factor(levels = c("No", "Yes"))
+
+
+
+# Type of insurance - long-term care costs - association
+data$INS_020C <- recode(data$INS_020C,
+  `1` = "Yes",
+  `2` = "No",
+  `6` = NA_character_,
+  `7` = NA_character_,
+  `8` = NA_character_,
+  `9` = NA_character_
+) |> factor(levels = c("No", "Yes"))
+
+
+# Type of insurance - long-term care costs - own private plan
+data$INS_020D <- recode(data$INS_020D,
+  `1` = "Yes",
+  `2` = "No",
+  `6` = NA_character_,
+  `7` = NA_character_,
+  `8` = NA_character_,
+  `9` = NA_character_
+) |> factor(levels = c("No", "Yes"))
+
+
+# Has a regular health care provider
+data$PHC_020 <- recode(data$PHC_020,
+  `1` = "Yes",
+  `2` = "No",
+  # `6` = "Valid skip",
+  # `7` = "Dont know",
+  # `8` = "Refusal",
+  `7` = NA_character_,
+  `8` = NA_character_,
+  `9` = NA_character_
+) |> factor(levels = c("Yes", "No"))
+
+# View insurance variables
+#data %>% select(INS_005, INS_010A, INS_010B, INS_010C, INS_010D) %>% view()
+
+```
+```{r}
+# Weights = WTS_M
+
+data2 <- data %>% select(ADM_RNO, GEO_PRV, DHH_SEX, PHC_020, INS_005, GEN_005, GENDVSWL, SDCDGCB, SDCDGCGT, DHHGAGE, INCDGHH, EHG2DVH3, DHHGMS, PEX_090, SDC_015, GENDVMHI, INS_015, INS_020A, INS_020B, INS_020C, INS_020D,SDCDVIMM,
+                                 CCC_015, CCC_030, CCC_035, CCC_040,CCC_045, CCC_050, CCC_055, CCC_060, CCC_065, CCC_075, CCC_085, CCC_090, CCC_095, CCC_130, CCC_140, CCC_185, CCC_190, CCC_195, CCC_200, chronic_condition_number, INS_010A, INS_010B, INS_010C, INS_010D, SDCDVIMM, DHH_OWN, SDC_035, GEODGHR4, GENDVHDI, muscu, respiratory, cardiometabolic, neurologic_pain, mental_health, cancer, HUIDVHSI, WTS_M)
+
+```
+
+```{r}
+# Apply basic eligibility criteria
+data2 <- data2 %>% filter(CCC_050 == "Yes")
+```
+
+```{r}
+# Hard 'No' definition. Total n= 80,0110. 
+data2 <- data2 %>% 
+  filter(PEX_090 %in% c("Yes", "No")) %>%
+  mutate(PEX_090 = factor(PEX_090, levels = c("No", "Yes"))) %>%
+  filter(chronic_condition_number != "0") %>%
+  mutate(
+    chronic_condition_number = droplevels(chronic_condition_number)
+  )
+```
+
+```{r}
+# Further variable manipulation. Collapsing categorical levels e,g, dissatsified and very dissatisfied into one level due to small cell sizes
+
+# Satisfaction with life
+data2 <-data2 %>%
+  mutate(GENDVSWL = case_when(
+   GENDVSWL %in% c("Dissatisfied", "Very Dissatsified") ~ "Dissatisfied/ Very Dissatisfied",
+    TRUE ~ as.character(GENDVSWL)
+  )) %>%
+  mutate(GENDVSWL = factor(GENDVSWL, levels = c("Very Satisfied", "Satisfied", "Neither satisfied nor dissatisfied", "Dissatisfied/ Very Dissatisfied")), ordered = FALSE)
+
+
+# Perceived mental health
+data2 <- data2 %>%
+  mutate(GENDVMHI = case_when(
+   GENDVMHI %in% c("Fair", "Poor") ~ "Fair or Poor",
+    TRUE ~ as.character(GENDVMHI)
+  )) %>%
+  mutate(GENDVMHI = factor(GENDVMHI, levels = c("Excellent", "Very good", "Good", "Fair or Poor"), ordered = FALSE))
+
+
+# Overall Perceived health
+data2 <- data2 %>%
+  mutate(GEN_005 = case_when(
+   GEN_005 %in% c("Fair", "Poor") ~ "Fair or Poor",
+    TRUE ~ as.character(GEN_005)
+  )) %>%
+  mutate(GEN_005 = factor(GEN_005, levels = c("Excellent", "Very good", "Good", "Fair or Poor"), ordered = FALSE))
+
+
+# Age
+data2 <- data2 %>%
+  mutate(DHHGAGE = case_when(
+    DHHGAGE %in% c("12-17", "18-34") ~ "≤34",
+    DHHGAGE %in% c("35-49") ~ "35-49",
+    DHHGAGE %in% c("50-64") ~ "50-64",
+    DHHGAGE %in% c("65-79", "≥80") ~ "≥65",
+    TRUE ~ as.character(DHHGAGE)
+  )) %>%
+  mutate(DHHGAGE  = factor(DHHGAGE , levels = c("≥65","≤34", "35-49","50-64"), ordered = FALSE))
+
+
+# Province of residence
+data2 <- data2 %>% mutate(REGION = case_when(
+  GEO_PRV %in% c("NEWFOUNDLAND AND LABRADOR", "PRINCE EDWARD ISLAND", "NOVA SCOTIA", "NEW BRUNSWICK") ~ "Atlantic provinces",
+  GEO_PRV == "QUEBEC" ~ "Quebec",
+  GEO_PRV == "ONTARIO" ~ "Ontario",
+  GEO_PRV %in% c("MANITOBA", "SASKATCHEWAN", "ALBERTA") ~ "Prairies",
+  GEO_PRV == "BRITISH COLUMBIA" ~ "British Columbia",
+  GEO_PRV %in% c("YUKON", "NORTHWEST TERRITORIES") ~ "Yukon/ Northwest Territories",
+  TRUE ~ NA_character_
+)) %>%
+ mutate(REGION = factor(REGION, levels = c("Quebec", "Ontario", "Atlantic provinces","Prairies", "British Columbia", "Yukon/ Northwest Territories"), ordered = FALSE))
+```
+
+
+```{r}
+# Merge data2 (main analytic file) with bootstrap weights (bsw) by respondent ID
+# keep all rows from data2
+data_merged <- merge(data2, bsw, by = "ADM_RNO", all.x = TRUE)
+
+# Replicate-weight design using BSW1–BSW1000
+cchs_design <- svrepdesign(
+  weights    = ~WTS_M,
+  repweights = data_merged[, paste0("BSW", 1:1000)], # by name and not column position
+  type       = "bootstrap",
+  data       = data_merged,
+  combined.weights = TRUE
+)
+
+# Create a constant variable = 1 for everyone.
+# The weighted total of this variable is the total population (sum of weights).
+cchs_design <- update(cchs_design, all_one = 1)
+
+# Total weighted population represented by the analytic sample, with 95% CI
+total_pop <- svytotal(~all_one, cchs_design)
+total_pop          # point estimate
+confint(total_pop) # 95% CI
+```
+
+```{r}
+# Convert total_pop into a numeric scalar for proportions
+total_pop_scalar <- as.numeric(total_pop)
+total_pop_scalar
+```
+
+```{r}
+# Variable distribution checks (unweighted)
+# Purpose: Confirm recodes and category levels
+
+vars_to_check <- c(
+  "DHH_SEX",                  # Sex
+  "DHHGAGE",                  # Age group
+  "GEO_PRV",                  # Province
+  "EHG2DVH3",                 # Education
+  "INCDGHH",                  # Household income
+  "DHHGMS",                   # Marital status
+  "SDCDGCB",                  # Country of birth
+  "SDCDGCGT",                 # Race/ethnicity
+  "SDC_035",                  # Sexual orientation
+  "DHH_OWN",                  # Home ownership
+  "REGION",                   # Region
+  "PHC_020",                  # Regular healthcare provider
+  "INS_005",                  # Prescription drug insurance
+  "chronic_condition_number", # Number of chronic conditions
+  "GEN_005",                  # Overall perceived health
+  "mental_health",            # Mental health condition
+  "GENDVSWL"                  # Life satisfaction
+)
+
+# Frequency tables
+lapply(
+  data_merged[vars_to_check],
+  table,
+  useNA = "ifany"
+)
+```
+
+
+```{r}
+# Function to get totals + CIs + proportions for one variable
+get_totals_props <- function(var, design, total_N) {
+  f  <- as.formula(paste0("~", var))
+  tt <- svytotal(f, design, na.rm = TRUE)
+  ci <- confint(tt)
+
+  data.frame(
+    variable    = var,
+    level       = names(tt),
+    total       = as.numeric(tt),
+    total_low   = ci[, 1],
+    total_upp   = ci[, 2],
+    prop        = as.numeric(tt)    / total_N,
+    prop_low    = ci[, 1]           / total_N,
+    prop_upp    = ci[, 2]           / total_N
+  )
+}
+
+# Apply to all variables in vars_for_table
+descriptives_list <- lapply(
+  vars_to_check,
+  get_totals_props,
+  design  = cchs_design,
+  total_N = total_pop_scalar
+)
+
+# Combine into one data frame. Check the environment object for numbers
+descriptives <- do.call(rbind, descriptives_list)
+
+# Example of individual check
+subset(descriptives, variable == "DHH_SEX")
+
+```
+
+
+```{r}
+# Proportion with PEX_090 == "Yes" within levels of one variable, as % + 95% CI
+get_crna_by_var <- function(var, design, digits = 1) {
+  f_group <- as.formula(paste0("~", var))
+
+  by_res <- svyby(
+    ~as.numeric(PEX_090 == "Yes"),
+    f_group,
+    design,
+    svymean,
+    na.rm      = TRUE,
+    keep.names = TRUE
+  )
+
+  # by_res has: var, estimate, se
+  est <- as.numeric(by_res[, 2])
+  se  <- as.numeric(by_res[, 3])
+
+  lower <- est - 1.96 * se
+  upper <- est + 1.96 * se
+
+  # convert to percentages
+  est_pct   <- est   * 100
+  lower_pct <- lower * 100
+  upper_pct <- upper * 100
+
+  # rounded values
+  est_r   <- round(est_pct,   digits)
+  low_r   <- round(lower_pct, digits)
+  upp_r   <- round(upper_pct, digits)
+
+  # nice "x.x (L–U)" string for tables
+  ci_str <- sprintf("%0.*f (%0.*f–%0.*f)", 
+                    digits, est_r,
+                    digits, low_r,
+                    digits, upp_r)
+
+  data.frame(
+    variable      = var,
+    level         = by_res[[var]],
+    prop_yes_pct  = est_r,
+    prop_yes_low  = low_r,
+    prop_yes_upp  = upp_r,
+    prop_yes_ci   = ci_str,
+    stringsAsFactors = FALSE
+  )
+}
+
+# Apply to the full variable list in one go, and view in the environment
+crna_by_all <- do.call(
+  rbind,
+  lapply(vars_to_check, get_crna_by_var, design = cchs_design)
+)
+```
+
+
+```{r}
+# Example of viewing individual CRNA proportions per variable
+subset(crna_by_all, variable == "DHH_SEX") # sex
+subset(crna_by_all, variable == "INCDGHH") # income
+subset(crna_by_all, variable == "REGION") # province of residence
+```
+
+```{r}
+set.seed(2025)
+
+# Select variables for ML analysis
+arth_ml <- data2 %>%
+  select(PEX_090,
+    DHH_SEX,
+    DHHGAGE,
+    EHG2DVH3,
+    INCDGHH,
+    DHHGMS,
+    GEN_005, # Overall perceived health
+    SDCDGCB,
+    SDCDGCGT,
+    chronic_condition_number,
+    PHC_020,
+    INS_005,
+    GENDVSWL, # satisfaction with life
+    REGION,
+    DHH_OWN,
+    SDC_035,
+    mental_health,
+    WTS_M
+  )
+```
+
+```{r}
+# Missingness
+arth_ml %>%
+  summarise(
+    across(
+      everything(),
+      ~ sum(is.na(.))
+    )
+  ) %>%
+  pivot_longer(
+    everything(),
+    names_to = "variable",
+    values_to = "n_missing"
+  ) %>%
+  mutate(
+    pct_missing = 100 * n_missing / nrow(arth_ml)
+  ) %>%
+  arrange(desc(pct_missing))
+
+sum(is.na(arth_ml$PHC_020))
+```
+
+
+```{r}
+# Initial MICE setup
+ini <- mice(
+  arth_ml,
+  m = 1,
+  maxit = 0,
+  print = FALSE
+)
+
+meth <- ini$method
+pred <- ini$predictorMatrix
+
+# Inspect default imputation methods
+meth
+
+```
+```{r}
+# Imputation by MICE
+
+set.seed(2025)
+
+tempData <- mice(
+  arth_ml,
+  m = 5,
+  maxit = 25,
+  method = meth,
+  predictorMatrix = pred,
+  seed = 2025,
+  print = FALSE
+)
+
+# Check convergence across iterations
+plot(tempData)
+
+# Visual inspection of the MICE trace plots indicated adequate convergence, with good mixing of the chains and no evidence of systematic trends or persistent separation across iterations.
+
+# Inspect imputed vs observed values
+stripplot(tempData, INCDGHH ~ .imp, pch = 20, cex = 1.2)
+stripplot(tempData, EHG2DVH3 ~ .imp, pch = 20, cex = 1.2)
+stripplot(tempData, DHHGMS ~ .imp, pch = 20, cex = 1.2)
+
+# Examine imputed income values across the 5 datasets
+tempData$imp$INCDGHH
+tempData$imp$EHG2DVH3
+tempData$imp$SDCDGCGT
+```
+
+```{r}
+library(mice)
+library(mitools)
+library(survey)
+library(dplyr)
+
+# Convert multiply imputed data into a list of complete datasets
+imp_list <- complete(tempData, action = "all")
+
+# Fit survey-weighted logistic regression separately in each
+# multiply imputed dataset
+models <- lapply(imp_list, function(mydata) {
+
+  # Define survey design using the CCHS person-level survey weight
+  des <- svydesign(
+    ids = ~1,
+    weights = ~WTS_M,
+    data = mydata
+  )
+
+  # Survey-weighted logistic regression
+  #
+  # quasibinomial() is used rather than binomial() because svyglm()
+  # fits survey-weighted models and quasibinomial() avoids warnings
+  # about non-integer numbers of successes that can occur with
+  # survey weights.
+  #
+  # For a binary outcome with a logit link, quasibinomial() gives
+  # the same coefficient estimates as binomial(); the "quasi"
+  # specification does not change the interpretation of the
+  # coefficients as log odds (or odds ratios after exponentiation).
+  svyglm(
+    PEX_090 ~
+      DHH_SEX +
+      DHHGAGE +
+      EHG2DVH3 +
+      INCDGHH +
+      DHHGMS +
+      GEN_005 +
+      SDCDGCB +
+      SDCDGCGT +
+      chronic_condition_number +
+      PHC_020 +
+      INS_005 +
+      GENDVSWL +
+      REGION +
+      DHH_OWN +
+      SDC_035 +
+      mental_health,
+    design = des,
+    family = quasibinomial()
+  )
+})
+
+# Pool regression estimates and variance across imputations
+# using Rubin's rules
+MI_results <- MIcombine(models)
+
+summary(MI_results)
+
+# Extract pooled coefficients and standard errors
+beta <- MI_results$coefficients
+se <- sqrt(diag(MI_results$variance))
+
+# Convert pooled log-odds coefficients to odds ratios
+# with 95% confidence intervals
+OR_df <- data.frame(
+  term = names(beta),
+  estimate = beta,
+  SE = se,
+  OR = exp(beta),
+  lower_OR = exp(beta - 1.96 * se),
+  upper_OR = exp(beta + 1.96 * se)
+)
+
+OR_df
 
 
 ```
+```{r}
+# MALES
+
+# Use the same completed multiply imputed datasets as the overall analysis
+complete_datasets_list <- complete(tempData, action = "all")
+
+# Fit survey-weighted logistic regression separately
+# within males in each imputed dataset
+male_models <- lapply(complete_datasets_list, function(mydata) {
+
+  # Restrict analysis to males
+  male_data <- mydata %>%
+    filter(DHH_SEX == "Male")
+
+  # Define survey design using the CCHS person-level survey weight
+  des <- svydesign(
+    ids = ~1,
+    weights = ~WTS_M,
+    data = male_data
+  )
+
+  # Survey-weighted logistic regression
+  #
+  # quasibinomial() is used rather than binomial() because svyglm()
+  # uses survey weights, which can produce warnings about non-integer
+  # numbers of successes with binomial().
+  #
+  # For this binary outcome with a logit link, the coefficients retain
+  # the usual logistic-regression interpretation as log odds and can
+  # be exponentiated to obtain odds ratios.
+  svyglm(
+    PEX_090 ~
+      DHHGAGE +
+      EHG2DVH3 +
+      INCDGHH +
+      DHHGMS +
+      GEN_005 +
+      SDCDGCB +
+      SDCDGCGT +
+      chronic_condition_number +
+      PHC_020 +
+      INS_005 +
+      GENDVSWL +
+      REGION +
+      DHH_OWN +
+      SDC_035 +
+      mental_health,
+    design = des,
+    family = quasibinomial()
+  )
+})
+
+# Pool estimates and variances across imputations
+# using Rubin's rules
+male_MI_results <- MIcombine(male_models)
+
+summary(male_MI_results)
+
+# Extract pooled coefficients and standard errors
+male_beta <- male_MI_results$coefficients
+male_se <- sqrt(diag(male_MI_results$variance))
+
+# Convert pooled log-odds coefficients to odds ratios
+# with 95% confidence intervals
+male_OR_df <- data.frame(
+  term = names(male_beta),
+  estimate = male_beta,
+  SE = male_se,
+  OR = exp(male_beta),
+  lower_OR = exp(male_beta - 1.96 * male_se),
+  upper_OR = exp(male_beta + 1.96 * male_se)
+)
+
+male_OR_df
+```
+
+```{r}
+# FEMALES
+
+# Use the same completed multiply imputed datasets as the overall analysis
+complete_datasets_list <- complete(tempData, action = "all")
+
+# Fit survey-weighted logistic regression separately
+# within females in each imputed dataset
+female_models <- lapply(complete_datasets_list, function(mydata) {
+
+  # Restrict analysis to females
+  female_data <- mydata %>%
+    filter(DHH_SEX == "Female")
+
+  # Define survey design using the CCHS person-level survey weight
+  des <- svydesign(
+    ids = ~1,
+    weights = ~WTS_M,
+    data = female_data
+  )
+
+  # Survey-weighted logistic regression
+  #
+  # quasibinomial() is used rather than binomial() because svyglm()
+  # uses survey weights, which can produce warnings about non-integer
+  # numbers of successes with binomial().
+  #
+  # For this binary outcome with a logit link, the coefficients retain
+  # the usual logistic-regression interpretation as log odds and can
+  # be exponentiated to obtain odds ratios.
+  svyglm(
+    PEX_090 ~
+      DHHGAGE +
+      EHG2DVH3 +
+      INCDGHH +
+      DHHGMS +
+      GEN_005 +
+      SDCDGCB +
+      SDCDGCGT +
+      chronic_condition_number +
+      PHC_020 +
+      INS_005 +
+      GENDVSWL +
+      REGION +
+      DHH_OWN +
+      SDC_035 +
+      mental_health,
+    design = des,
+    family = quasibinomial()
+  )
+})
+
+# Pool estimates and variances across imputations
+# using Rubin's rules
+female_MI_results <- MIcombine(female_models)
+
+summary(female_MI_results)
+
+# Extract pooled coefficients and standard errors
+female_beta <- female_MI_results$coefficients
+female_se <- sqrt(diag(female_MI_results$variance))
+
+# Convert pooled log-odds coefficients to odds ratios
+# with 95% confidence intervals
+female_OR_df <- data.frame(
+  term = names(female_beta),
+  estimate = female_beta,
+  SE = female_se,
+  OR = exp(female_beta),
+  lower_OR = exp(female_beta - 1.96 * female_se),
+  upper_OR = exp(female_beta + 1.96 * female_se)
+)
+
+female_OR_df
+```
+
+
+```{r}
+# ============================================================
+# EXPLORATORY RANDOM FOREST: OVERALL PERMUTATION IMPORTANCE
+# Uses all MICE-imputed datasets
+# ============================================================
+
+# Set up parallel processing
+n_cores <- parallel::detectCores(logical = TRUE)
+
+cl <- parallel::makeCluster(
+  max(1, n_cores - 1)
+)
+
+registerDoParallel(cl)
+set.seed(2025)
+
+# ------------------------------------------------------------
+# 1. Extract all completed MICE datasets
+# ------------------------------------------------------------
+
+arth_rf_imp <- complete(tempData, action = "all")
+
+# Keep the same variables used in the primary regression
+arth_rf_imp <- lapply(arth_rf_imp, function(dat) {
+
+  dat %>%
+    select(
+      PEX_090,
+      DHH_SEX,
+      DHHGAGE,
+      EHG2DVH3,
+      INCDGHH,
+      DHHGMS,
+      GEN_005,
+      SDCDGCB,
+      SDCDGCGT,
+      chronic_condition_number,
+      PHC_020,
+      INS_005,
+      GENDVSWL,
+      REGION,
+      DHH_OWN,
+      SDC_035,
+      mental_health,
+      WTS_M
+    ) %>%
+    mutate(
+      # Convert CCHS survey weight to a tidymodels importance weight
+      WTS_M = hardhat::importance_weights(WTS_M)
+    )
+})
+
+
+# ------------------------------------------------------------
+# 2. Tune RF hyperparameters using the first imputed dataset
+# ------------------------------------------------------------
+
+# 5-fold CV stratified by CRNA status
+arth_rf_folds <- vfold_cv(
+  arth_rf_imp[[1]],
+  v = 5,
+  strata = PEX_090
+)
+
+# No imputation step is required here because missing data
+# have already been handled using MICE
+arth_rf_rec <- recipe(
+  PEX_090 ~ .,
+  data = arth_rf_imp[[1]]
+)
+
+# Random forest specification
+arth_rf_spec <- rand_forest(
+  mtry = tune(),
+  min_n = tune(),
+  trees = 1000
+) %>%
+  set_engine(
+    "ranger",
+    importance = "permutation",
+    probability = TRUE
+  ) %>%
+  set_mode("classification")
+
+# Workflow
+arth_rf_wf <- workflow() %>%
+  add_recipe(arth_rf_rec) %>%
+  add_model(arth_rf_spec) %>%
+  add_case_weights(WTS_M)
+
+# Tuning grid
+arth_rf_grid <- grid_regular(
+  mtry(range = c(2, 15)),
+  min_n(range = c(5, 40)),
+  levels = 5
+)
+
+# Tune RF
+set.seed(2025)
+
+arth_rf_tune <- tune_grid(
+  arth_rf_wf,
+  resamples = arth_rf_folds,
+  grid = arth_rf_grid,
+  metrics = metric_set(
+    roc_auc,
+    pr_auc
+  ),
+  control = control_grid(
+    save_pred = TRUE
+  )
+)
+
+
+# ------------------------------------------------------------
+# 3. Select best hyperparameters
+#    CRNA ("Yes") is explicitly treated as the event
+# ------------------------------------------------------------
+
+arth_rf_preds <- collect_predictions(arth_rf_tune)
+
+arth_rf_metrics <- arth_rf_preds %>%
+  group_by(mtry, min_n, id) %>%
+  summarise(
+    roc_auc = roc_auc_vec(
+      truth = PEX_090,
+      estimate = .pred_Yes,
+      event_level = "second"
+    ),
+    pr_auc = pr_auc_vec(
+      truth = PEX_090,
+      estimate = .pred_Yes,
+      event_level = "second"
+    ),
+    .groups = "drop"
+  ) %>%
+  group_by(mtry, min_n) %>%
+  summarise(
+    mean_roc_auc = mean(roc_auc),
+    mean_pr_auc = mean(pr_auc),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(mean_roc_auc))
+
+# Select hyperparameters with highest mean CV ROC-AUC
+arth_rf_best <- arth_rf_metrics %>%
+  slice_max(
+    mean_roc_auc,
+    n = 1,
+    with_ties = FALSE
+  ) %>%
+  select(mtry, min_n)
+
+arth_rf_best
+
+
+# ------------------------------------------------------------
+# 4. Finalize RF using the selected hyperparameters
+# ------------------------------------------------------------
+
+arth_rf_final_wf <- finalize_workflow(
+  arth_rf_wf,
+  arth_rf_best
+)
+
+
+# ------------------------------------------------------------
+# 5. Fit the SAME RF specification to every MICE dataset
+#    and extract permutation importance
+# ------------------------------------------------------------
+
+set.seed(2025)
+
+arth_rf_vi_list <- map2(
+  arth_rf_imp,
+  seq_along(arth_rf_imp),
+  function(dat, imp) {
+
+    fit_i <- fit(
+      arth_rf_final_wf,
+      data = dat
+    )
+
+    fit_i %>%
+      extract_fit_parsnip() %>%
+      vip::vi() %>%
+      mutate(
+        imputation = imp
+      )
+  }
+)
+
+
+# ------------------------------------------------------------
+# 6. Summarize permutation importance across imputations
+#
+# There is no Rubin's-rules pooling procedure for RF variable
+# importance. Therefore, importance is summarized across the
+# multiply imputed datasets rather than formally "pooled."
+# ------------------------------------------------------------
+
+arth_rf_vi <- bind_rows(arth_rf_vi_list) %>%
+  group_by(Variable) %>%
+  summarise(
+    mean_importance = mean(Importance),
+    sd_importance = sd(Importance),
+    min_importance = min(Importance),
+    max_importance = max(Importance),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(mean_importance))
+
+arth_rf_vi
+
+# End parallel processing
+parallel::stopCluster(cl)
+registerDoSEQ()
+```
+
+```{r}
+# ============================================================
+# RANDOM FOREST PERMUTATION IMPORTANCE PLOTS
+# ============================================================
+#
+# The RF was fitted separately to each MICE-completed dataset.
+# Permutation importance therefore exists for each predictor
+# within each imputed dataset.
+#
+# Plot 1 summarizes the MEAN permutation importance across
+# imputations and provides the primary variable-importance ranking.
+#
+# Plot 2 displays the distribution of permutation importance
+# across imputations and is used to assess whether the importance
+# estimates are reasonably stable to imputation uncertainty.
+#
+# Permutation importance reflects the contribution of each variable
+# to RF prediction. It does NOT indicate the direction of an
+# association and should not be interpreted as a causal effect.
+
+
+# ------------------------------------------------------------
+# 1. Create manuscript-friendly variable labels
+# ------------------------------------------------------------
+
+pretty_names <- c(
+  DHH_SEX = "Sex",
+  DHHGAGE = "Age",
+  EHG2DVH3 = "Highest Level of Education",
+  INCDGHH = "Household Income",
+  DHHGMS = "Marital Status",
+  GEN_005 = "Overall Perceived Health",
+  SDCDGCB = "Country of Birth",
+  SDCDGCGT = "Race/Ethnicity",
+  chronic_condition_number = "Number of Chronic Conditions",
+  PHC_020 = "Regular Healthcare Provider",
+  INS_005 = "Prescription Drug Insurance",
+  GENDVSWL = "Satisfaction with Life",
+  REGION = "Province of Residence",
+  DHH_OWN = "Home Ownership",
+  SDC_035 = "Sexual Orientation",
+  mental_health = "Mental Health Condition"
+)
+
+
+# ------------------------------------------------------------
+# 2. Mean permutation importance across MICE imputations
+# ------------------------------------------------------------
+
+arth_rf_vi_plot <- arth_rf_vi %>%
+  mutate(
+    Variable_label = recode(Variable, !!!pretty_names)
+  )
+
+# Main variable-importance plot
+#
+# Variables are ordered by their mean permutation importance.
+# Higher values indicate that disrupting that variable produces
+# a greater deterioration in RF predictive performance, suggesting
+# greater importance to the model.
+
+arth_rf_importance_plot <- ggplot(
+  arth_rf_vi_plot,
+  aes(
+    x = reorder(Variable_label, mean_importance),
+    y = mean_importance
+  )
+) +
+  geom_col() +
+  coord_flip() +
+  labs(
+    x = NULL,
+    y = "Mean Permutation Importance",
+    title = "Random Forest Variable Importance: Overall"
+  ) +
+  theme_minimal()
+
+arth_rf_importance_plot
+
+
+# ------------------------------------------------------------
+# 3. Examine importance across individual MICE imputations
+# ------------------------------------------------------------
+
+# Combine permutation-importance estimates from all imputed datasets
+# into long format.
+#
+# This retains the importance estimate from each imputation rather
+# than averaging them immediately.
+
+arth_rf_vi_long <- bind_rows(arth_rf_vi_list) %>%
+  mutate(
+    Variable_label = recode(Variable, !!!pretty_names)
+  )
+
+
+# ------------------------------------------------------------
+# 4. Plot stability of permutation importance across imputations
+# ------------------------------------------------------------
+
+# Each point represents the permutation importance obtained from
+# one MICE-completed dataset.
+#
+# The boxplots summarize the distribution across imputations.
+# Variables with consistently high importance and relatively narrow
+# distributions provide stronger evidence of stable predictive
+# importance across the multiply imputed datasets.
+#
+# Large variation or substantial overlap between variables indicates
+# greater uncertainty in their relative ranking.
+
+arth_rf_stability_plot <- ggplot(
+  arth_rf_vi_long,
+  aes(
+    x = reorder(
+      Variable_label,
+      Importance,
+      FUN = median
+    ),
+    y = Importance
+  )
+) +
+  geom_boxplot(
+    outlier.shape = NA
+  ) +
+  geom_jitter(
+    width = 0.15,
+    alpha = 0.5,
+    size = 1.5
+  ) +
+  coord_flip() +
+  labs(
+    x = NULL,
+    y = "Permutation Importance",
+    title = "Stability of Variable Importance Across MICE Imputations"
+  ) +
+  theme_minimal()
+
+arth_rf_stability_plot
+
+ggsave("RF_Overall_Importance.pdf", plot = arth_rf_importance_plot)
+ggsave("RF_Overall_Stability.pdf", plot = arth_rf_stability_plot)
+
+```
+
+```{r}
+# ============================================================
+# EXPLORATORY RANDOM FOREST: MALES
+# Permutation importance across all MICE-imputed datasets
+# ============================================================
+
+# Set up parallel processing
+n_cores <- parallel::detectCores(logical = TRUE)
+
+cl <- parallel::makeCluster(
+  max(1, n_cores - 1)
+)
+
+registerDoParallel(cl)
+set.seed(2025)
+
+
+# ------------------------------------------------------------
+# 1. Create male datasets from each MICE-completed dataset
+# ------------------------------------------------------------
+
+# Sex is removed as a predictor because all respondents
+# in these datasets are male.
+
+male_rf_imp <- lapply(arth_rf_imp, function(dat) {
+
+  dat %>%
+    filter(DHH_SEX == "Male") %>%
+    select(-DHH_SEX) %>%
+    droplevels()
+})
+
+
+# ------------------------------------------------------------
+# 2. Tune RF hyperparameters using first male imputed dataset
+# ------------------------------------------------------------
+
+# 5-fold CV stratified by CRNA status
+male_rf_folds <- vfold_cv(
+  male_rf_imp[[1]],
+  v = 5,
+  strata = PEX_090
+)
+
+# Missing data have already been handled using MICE
+male_rf_rec <- recipe(
+  PEX_090 ~ .,
+  data = male_rf_imp[[1]]
+)
+
+# Random forest specification
+male_rf_spec <- rand_forest(
+  mtry = tune(),
+  min_n = tune(),
+  trees = 1000
+) %>%
+  set_engine(
+    "ranger",
+    importance = "permutation",
+    probability = TRUE
+  ) %>%
+  set_mode("classification")
+
+# Workflow including CCHS person-level weights
+male_rf_wf <- workflow() %>%
+  add_recipe(male_rf_rec) %>%
+  add_model(male_rf_spec) %>%
+  add_case_weights(WTS_M)
+
+# Tuning grid
+male_rf_grid <- grid_regular(
+  mtry(range = c(2, 14)),
+  min_n(range = c(5, 40)),
+  levels = 5
+)
+
+# Tune RF
+set.seed(2025)
+
+male_rf_tune <- tune_grid(
+  male_rf_wf,
+  resamples = male_rf_folds,
+  grid = male_rf_grid,
+  metrics = metric_set(
+    roc_auc,
+    pr_auc
+  ),
+  control = control_grid(
+    save_pred = TRUE
+  )
+)
+
+# ------------------------------------------------------------
+# 3. Select best male RF hyperparameters
+#    CRNA ("Yes") is explicitly treated as the event
+# ------------------------------------------------------------
+
+male_rf_preds <- collect_predictions(male_rf_tune)
+
+male_rf_metrics <- male_rf_preds %>%
+  group_by(mtry, min_n, id) %>%
+  summarise(
+    roc_auc = roc_auc_vec(
+      truth = PEX_090,
+      estimate = .pred_Yes,
+      event_level = "second"
+    ),
+    pr_auc = pr_auc_vec(
+      truth = PEX_090,
+      estimate = .pred_Yes,
+      event_level = "second"
+    ),
+    .groups = "drop"
+  ) %>%
+  group_by(mtry, min_n) %>%
+  summarise(
+    mean_roc_auc = mean(roc_auc),
+    mean_pr_auc = mean(pr_auc),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(mean_roc_auc))
+
+# Select hyperparameters with highest mean CV ROC-AUC
+male_rf_best <- male_rf_metrics %>%
+  slice_max(
+    mean_roc_auc,
+    n = 1,
+    with_ties = FALSE
+  ) %>%
+  select(mtry, min_n)
+
+male_rf_best
+
+# ------------------------------------------------------------
+# 4. Finalize male RF
+# ------------------------------------------------------------
+
+male_rf_final_wf <- finalize_workflow(
+  male_rf_wf,
+  male_rf_best
+)
+
+# ------------------------------------------------------------
+# 5. Fit SAME male RF specification to every MICE dataset
+#    and extract permutation importance
+# ------------------------------------------------------------
+
+set.seed(2025)
+
+male_rf_vi_list <- map2(
+  male_rf_imp,
+  seq_along(male_rf_imp),
+  function(dat, imp) {
+
+    fit_i <- fit(
+      male_rf_final_wf,
+      data = dat
+    )
+
+    fit_i %>%
+      extract_fit_parsnip() %>%
+      vip::vi() %>%
+      mutate(
+        imputation = imp
+      )
+  }
+)
+
+# ------------------------------------------------------------
+# 6. Summarize permutation importance across imputations
+# ------------------------------------------------------------
+
+# RF importance is summarized across MICE datasets rather than
+# pooled using Rubin's rules.
+
+male_rf_vi <- bind_rows(male_rf_vi_list) %>%
+  group_by(Variable) %>%
+  summarise(
+    mean_importance = mean(Importance),
+    sd_importance = sd(Importance),
+    min_importance = min(Importance),
+    max_importance = max(Importance),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(mean_importance))
+
+male_rf_vi
+
+
+# ------------------------------------------------------------
+# 7. Add manuscript-friendly variable names
+# ------------------------------------------------------------
+
+male_rf_vi_plot <- male_rf_vi %>%
+  mutate(
+    Variable_label = recode(Variable, !!!pretty_names)
+  )
+
+
+# ------------------------------------------------------------
+# 8. Plot mean permutation importance: males
+# ------------------------------------------------------------
+
+male_rf_importance_plot <- ggplot(
+  male_rf_vi_plot,
+  aes(
+    x = reorder(Variable_label, mean_importance),
+    y = mean_importance
+  )
+) +
+  geom_col() +
+  coord_flip() +
+  labs(
+    x = NULL,
+    y = "Mean Permutation Importance",
+    title = "Random Forest Variable Importance: Males"
+  ) +
+  theme_minimal()
+
+male_rf_importance_plot
+
+
+# ------------------------------------------------------------
+# 9. Plot importance across male MICE datasets
+# ------------------------------------------------------------
+
+male_rf_vi_long <- bind_rows(male_rf_vi_list) %>%
+  mutate(
+    Variable_label = recode(Variable, !!!pretty_names)
+  )
+
+male_rf_stability_plot <- ggplot(
+  male_rf_vi_long,
+  aes(
+    x = reorder(
+      Variable_label,
+      Importance,
+      FUN = median
+    ),
+    y = Importance
+  )
+) +
+  geom_boxplot(
+    outlier.shape = NA
+  ) +
+  geom_jitter(
+    width = 0.15,
+    alpha = 0.5,
+    size = 1.5
+  ) +
+  coord_flip() +
+  labs(
+    x = NULL,
+    y = "Permutation Importance",
+    title = "Distribution of Variable Importance Across Imputed Datasets: Males"
+  ) +
+  theme_minimal()
+
+male_rf_stability_plot
+
+ggsave("male_rf_importance_plot.pdf", plot = arth_rf_importance_plot)
+ggsave("male_rf_Stability.pdf", plot = arth_rf_stability_plot)
+
+
+# End parallel processing
+parallel::stopCluster(cl)
+registerDoSEQ()
+```
+
+```{r}
+# ============================================================
+# EXPLORATORY RANDOM FOREST: FEMALES
+# Permutation importance across all MICE-imputed datasets
+# ============================================================
+
+# Set up parallel processing
+n_cores <- parallel::detectCores(logical = TRUE)
+
+cl <- parallel::makeCluster(
+  max(1, n_cores - 1)
+)
+
+registerDoParallel(cl)
+set.seed(2025)
+
+
+# ------------------------------------------------------------
+# 1. Create female datasets from each MICE-completed dataset
+# ------------------------------------------------------------
+
+# Sex is removed as a predictor because all respondents
+# in these datasets are female.
+
+female_rf_imp <- lapply(arth_rf_imp, function(dat) {
+
+  dat %>%
+    filter(DHH_SEX == "Female") %>%
+    select(-DHH_SEX) %>%
+    droplevels()
+})
+
+
+# ------------------------------------------------------------
+# 2. Tune RF hyperparameters using first female imputed dataset
+# ------------------------------------------------------------
+
+# 5-fold CV stratified by CRNA status
+female_rf_folds <- vfold_cv(
+  female_rf_imp[[1]],
+  v = 5,
+  strata = PEX_090
+)
+
+# Missing data have already been handled using MICE
+female_rf_rec <- recipe(
+  PEX_090 ~ .,
+  data = female_rf_imp[[1]]
+)
+
+# Random forest specification
+female_rf_spec <- rand_forest(
+  mtry = tune(),
+  min_n = tune(),
+  trees = 1000
+) %>%
+  set_engine(
+    "ranger",
+    importance = "permutation",
+    probability = TRUE
+  ) %>%
+  set_mode("classification")
+
+# Workflow including CCHS person-level weights
+female_rf_wf <- workflow() %>%
+  add_recipe(female_rf_rec) %>%
+  add_model(female_rf_spec) %>%
+  add_case_weights(WTS_M)
+
+# Tuning grid
+female_rf_grid <- grid_regular(
+  mtry(range = c(2, 14)),
+  min_n(range = c(5, 40)),
+  levels = 5
+)
+
+# Tune RF
+set.seed(2025)
+
+female_rf_tune <- tune_grid(
+  female_rf_wf,
+  resamples = female_rf_folds,
+  grid = female_rf_grid,
+  metrics = metric_set(
+    roc_auc,
+    pr_auc
+  ),
+  control = control_grid(
+    save_pred = TRUE
+  )
+)
+
+
+# ------------------------------------------------------------
+# 3. Select best female RF hyperparameters
+#    CRNA ("Yes") is explicitly treated as the event
+# ------------------------------------------------------------
+
+female_rf_preds <- collect_predictions(female_rf_tune)
+
+female_rf_metrics <- female_rf_preds %>%
+  group_by(mtry, min_n, id) %>%
+  summarise(
+    roc_auc = roc_auc_vec(
+      truth = PEX_090,
+      estimate = .pred_Yes,
+      event_level = "second"
+    ),
+    pr_auc = pr_auc_vec(
+      truth = PEX_090,
+      estimate = .pred_Yes,
+      event_level = "second"
+    ),
+    .groups = "drop"
+  ) %>%
+  group_by(mtry, min_n) %>%
+  summarise(
+    mean_roc_auc = mean(roc_auc),
+    mean_pr_auc = mean(pr_auc),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(mean_roc_auc))
+
+# Select hyperparameters with highest mean CV ROC-AUC
+female_rf_best <- female_rf_metrics %>%
+  slice_max(
+    mean_roc_auc,
+    n = 1,
+    with_ties = FALSE
+  ) %>%
+  select(mtry, min_n)
+
+female_rf_best
+
+
+# ------------------------------------------------------------
+# 4. Finalize female RF
+# ------------------------------------------------------------
+
+female_rf_final_wf <- finalize_workflow(
+  female_rf_wf,
+  female_rf_best
+)
+
+
+# ------------------------------------------------------------
+# 5. Fit SAME female RF specification to every MICE dataset
+#    and extract permutation importance
+# ------------------------------------------------------------
+
+set.seed(2025)
+
+female_rf_vi_list <- map2(
+  female_rf_imp,
+  seq_along(female_rf_imp),
+  function(dat, imp) {
+
+    fit_i <- fit(
+      female_rf_final_wf,
+      data = dat
+    )
+
+    fit_i %>%
+      extract_fit_parsnip() %>%
+      vip::vi() %>%
+      mutate(
+        imputation = imp
+      )
+  }
+)
+
+
+# ------------------------------------------------------------
+# 6. Summarize permutation importance across imputations
+# ------------------------------------------------------------
+
+female_rf_vi <- bind_rows(female_rf_vi_list) %>%
+  group_by(Variable) %>%
+  summarise(
+    mean_importance = mean(Importance),
+    sd_importance = sd(Importance),
+    min_importance = min(Importance),
+    max_importance = max(Importance),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(mean_importance))
+
+female_rf_vi
+
+
+# ------------------------------------------------------------
+# 7. Add manuscript-friendly variable names
+# ------------------------------------------------------------
+
+female_rf_vi_plot <- female_rf_vi %>%
+  mutate(
+    Variable_label = recode(Variable, !!!pretty_names)
+  )
+
+
+# ------------------------------------------------------------
+# 8. Plot mean permutation importance: females
+# ------------------------------------------------------------
+
+female_rf_importance_plot <- ggplot(
+  female_rf_vi_plot,
+  aes(
+    x = reorder(Variable_label, mean_importance),
+    y = mean_importance
+  )
+) +
+  geom_col() +
+  coord_flip() +
+  labs(
+    x = NULL,
+    y = "Mean Permutation Importance",
+    title = "Random Forest Variable Importance: Females"
+  ) +
+  theme_minimal()
+
+female_rf_importance_plot
+
+
+# ------------------------------------------------------------
+# 9. Plot importance across female MICE datasets
+# ------------------------------------------------------------
+
+female_rf_vi_long <- bind_rows(female_rf_vi_list) %>%
+  mutate(
+    Variable_label = recode(Variable, !!!pretty_names)
+  )
+
+female_rf_stability_plot <- ggplot(
+  female_rf_vi_long,
+  aes(
+    x = reorder(
+      Variable_label,
+      Importance,
+      FUN = median
+    ),
+    y = Importance
+  )
+) +
+  geom_boxplot(
+    outlier.shape = NA
+  ) +
+  geom_jitter(
+    width = 0.15,
+    alpha = 0.5,
+    size = 1.5
+  ) +
+  coord_flip() +
+  labs(
+    x = NULL,
+    y = "Permutation Importance",
+    title = "Distribution of Variable Importance Across Imputed Datasets: Females"
+  ) +
+  theme_minimal()
+
+female_rf_stability_plot
+
+ggsave("female_rf_importance_plot.pdf", plot = arth_rf_importance_plot)
+ggsave("female_rf_Stability.pdf", plot = arth_rf_stability_plot)
+# End parallel processing
+parallel::stopCluster(cl)
+registerDoSEQ()
+
+```
+
+```{r}
+library(patchwork)
+rf_combined_plot <- (
+  arth_rf_importance_plot /
+  male_rf_importance_plot /
+  female_rf_importance_plot
+) +
+  plot_annotation(tag_levels = "A")
+
+rf_combined_plot
+
+ggsave("RF_Combined_Importance.pdf", width = 9, height = 15)
+```
+
+
+
